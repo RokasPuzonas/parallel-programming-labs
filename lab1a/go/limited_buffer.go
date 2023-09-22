@@ -10,21 +10,12 @@ type LimitedBuffer struct {
 	mutex       *sync.Mutex
 	updateCond  *sync.Cond
 
-	estimatedSize int
-	estimatedSizeMutex *sync.Mutex
-
-	consumedCount int
-	consumedMutex *sync.Mutex
-
-	processedCount int
-	processedMutex *sync.Mutex
+	estimatedCount int
+	reservedCount int
 }
 
 func makeLimitedBuffer(bufferSize int) LimitedBuffer {
 	var container = make([]DataEntry, bufferSize)
-	var estimatedSizeMutex = sync.Mutex{}
-	var processedMutex = sync.Mutex{}
-	var consumedMutex = sync.Mutex{}
 
 	var itemsMutex = sync.Mutex{}
 	var cond = sync.NewCond(&itemsMutex)
@@ -32,9 +23,6 @@ func makeLimitedBuffer(bufferSize int) LimitedBuffer {
 		items: container,
 		mutex: &itemsMutex,
 		updateCond: cond,
-		estimatedSizeMutex: &estimatedSizeMutex,
-		processedMutex: &processedMutex,
-		consumedMutex: &consumedMutex,
 	}
 }
 
@@ -63,43 +51,14 @@ func (buffer *LimitedBuffer) Remove() DataEntry {
 	return item
 }
 
-func (buffer *LimitedBuffer) IsDone() bool {
-	return buffer.estimatedSize == buffer.processedCount
-}
+func (buffer *LimitedBuffer) ReserveEntry() bool {
+	buffer.mutex.Lock()
+	defer buffer.mutex.Unlock()
 
-func (buffer *LimitedBuffer) WaitUntilDone() {
-	for !buffer.IsDone() {}
-}
-
-func (buffer *LimitedBuffer) ConsumeEstimatedEntry() bool {
-	buffer.estimatedSizeMutex.Lock()
-	defer buffer.estimatedSizeMutex.Unlock()
-
-	if (buffer.estimatedSize == buffer.consumedCount) {
+	if buffer.estimatedCount == buffer.reservedCount {
 		return false
 	} else {
-		buffer.consumedCount += 1
+		buffer.reservedCount++
 		return true
 	}
-}
-
-func (buffer *LimitedBuffer) IsEstimatedEmpty() bool {
-	buffer.estimatedSizeMutex.Lock()
-	defer buffer.estimatedSizeMutex.Unlock()
-
-	return buffer.estimatedSize == 0
-}
-
-func (buffer *LimitedBuffer) UpdateEstimated(change int) {
-	buffer.estimatedSizeMutex.Lock()
-	defer buffer.estimatedSizeMutex.Unlock()
-
-	buffer.estimatedSize += change
-}
-
-func (buffer *LimitedBuffer) MarkAsProcessed() {
-	buffer.processedMutex.Lock()
-	defer buffer.processedMutex.Unlock()
-
-	buffer.processedCount += 1
 }
