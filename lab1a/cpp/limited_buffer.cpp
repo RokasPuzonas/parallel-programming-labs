@@ -10,26 +10,20 @@ class LimitedBuffer {
 	std::mutex items_mutex;
 	std::condition_variable items_cv;
 
+	int reserved_count;
 public:
-	int estimated_size;
-	int consumed_count;
-	int processed_count;
-	std::mutex processed_mutex;
+	int estimated_count;
 
 	LimitedBuffer(int capacity) {
 		this->capacity = capacity;
-		estimated_size = 0;
-		consumed_count = 0;
-		processed_count = 0;
+		estimated_count = 0;
+		reserved_count = 0;
 	}
 
 	void insert(DataEntry entry);
 	DataEntry remove();
 
-	void update_estimated(int change);
-	bool consume_estimated();
-	void mark_processed();
-	bool is_done();
+	bool reserve_entry();
 };
 
 void LimitedBuffer::insert(DataEntry entry) {
@@ -50,27 +44,13 @@ DataEntry LimitedBuffer::remove() {
 	return entry;
 }
 
-void LimitedBuffer::update_estimated(int change) {
-	std::unique_lock<std::mutex> guard(processed_mutex);
-	estimated_size += change;
-}
+bool LimitedBuffer::reserve_entry() {
+	std::unique_lock<std::mutex> guard(items_mutex);
 
-bool LimitedBuffer::consume_estimated() {
-	std::unique_lock<std::mutex> guard(processed_mutex);
-
-	if (consumed_count == estimated_size) {
+	if (reserved_count == estimated_count) {
 		return false;
 	} else {
-		consumed_count++;
+		reserved_count++;
 		return true;
 	}
-}
-
-void LimitedBuffer::mark_processed() {
-	std::unique_lock<std::mutex> guard(processed_mutex);
-	processed_count++;
-}
-
-bool LimitedBuffer::is_done() {
-	return estimated_size == processed_count;
 }
