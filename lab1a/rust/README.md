@@ -1,3 +1,0 @@
-# Lab1a
-
-THIS IS NOT FINISHED
