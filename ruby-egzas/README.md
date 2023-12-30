@@ -1,0 +1,3 @@
+```shell
+ruby main.rb
+```

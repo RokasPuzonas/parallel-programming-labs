@@ -54,7 +54,7 @@ func processEntry(entry DataEntry, output chan DataEntry) {
 	}
 }
 
-func dataThread(fromMain, toWorker chan DataEntry, workerRequest chan bool, arraySize int, workerCount int) {
+func dataThread(fromMain, toWorker chan DataEntry, fromWorkerRequest chan bool, arraySize int, workerCount int) {
 	var gotTerminator = false
 	var storage []DataEntry = make([]DataEntry, arraySize)
 	var used = 0
@@ -69,7 +69,7 @@ func dataThread(fromMain, toWorker chan DataEntry, workerRequest chan bool, arra
 		used += 1
 	}
 
-	var getFromStorage = func() DataEntry {
+	var removeFromStorage = func() DataEntry {
 		var entry = storage[used-1]
 		used -= 1
 		return entry
@@ -77,31 +77,30 @@ func dataThread(fromMain, toWorker chan DataEntry, workerRequest chan bool, arra
 
 	for {
 		if (used == arraySize) {
-			<-workerRequest
-			toWorker <- getFromStorage()
+			<-fromWorkerRequest
+			toWorker <- removeFromStorage()
 		} else if (used == 0) {
 			appendtoStorage(<-fromMain)
 		} else {
 			select {
 			case entry := <-fromMain:
 				appendtoStorage(entry)
-			case <-workerRequest:
-				toWorker <- getFromStorage()
+			case <-fromWorkerRequest:
+				toWorker <- removeFromStorage()
 			}
 		}
 
 		if (gotTerminator) {
 			for i := 0; i < used; i++ {
-				<-workerRequest
+				<-fromWorkerRequest
 				toWorker <- storage[i]
 			}
 			for i := 0; i < workerCount; i++ {
-				<-workerRequest
+				<-fromWorkerRequest
 				toWorker <- Terminator
 			}
 			break
 		}
-
 	}
 }
 
